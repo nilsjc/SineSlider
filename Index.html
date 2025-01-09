@@ -3,51 +3,59 @@
 	<head>
 		<link href="slider/nouislider.min.css" rel="stylesheet">
 		<style>
-			#one {
+			.slider {
 			margin: 10px;
 			display: inline-block;
 			height: 200px;
 			}
 
-			#freqCntrl {
+			.freqCntrl {
 			height: 300px;
 			width: 400px;
-			margin: 0 auto;
+			margin: 20px;
 			padding: 10px;
 			border: 1px solid #000000;
-			background: rgb(0, 64, 64);
+			background: rgb(65, 68, 64);
+			display:inline-block;
 			}
 
 			.result {
 			margin: 20px;
 			display: inline-block;
-			vertical-align: right;
 			color: rgb(127, 127, 127);
 			background: rgb(127, 127, 127);
 			border: 1px solid #000000;
 			box-shadow: 0 0 10px;
+			display:inline-block;
 			}
 
-			#one .noUi-connect {
+			.slider .noUi-connect {
 			background: #c0002b;
 			}
-		}
+		
 		</style>
 
 	</head>
 	<body>
-		<div id="freqCntrl">
-			<div class="slider" id="one"></div>
-			<div class="result">
-				<canvas id="Canvas0" width="256" height="260">
-					Ser du denna text, stödjer inte webläsaren HTML5-canvas.
-				</canvas>
-			</div>
+		<div class="freqCntrl">
+			<div class="slider" id="1"></div>
+			<div class="slider" id="2"></div>
+			<div class="slider" id="3"></div>
+			<div class="slider" id="4"></div>
+			<div class="slider" id="5"></div>
+			<div class="slider" id="6"></div>
+			<div class="slider" id="7"></div>
+			<div class="slider" id="8"></div>
+		</div>
+		<div class="result">
+			<canvas id="Canvas0" width="256" height="260">
+				Ser du denna text, stödjer inte webläsaren HTML5-canvas.
+			</canvas>
 		</div>
 		
 		<script>
 
-		//globala variabler
+		//global var
 		var Glob = Glob || {};
 
 		window.onload = function(){
@@ -65,7 +73,10 @@
 		//kod för DOM
 		function controlInit(){
 			Glob.sliders = document.getElementsByClassName("slider");
-			noUiSlider.create(Glob.sliders[0],{
+			var sx = 0;
+			for(sx = 0; sx < 8; sx++)
+			{
+				noUiSlider.create(Glob.sliders[sx],{
 				start:0,
 				connect: true,
 				orientation: 'vertical',
@@ -74,14 +85,15 @@
 					'max':127
 					}
 				});
-			Glob.sliders[0].noUiSlider.on('slide', moveSlider);
+				Glob.sliders[sx].noUiSlider.on('slide', moveSlider); //() => moveSlider(sx)
 			}
+		}
 
-		function moveSlider(){
-			var number = Glob.sliders[0].noUiSlider.get();
-			number = number / 255;
-			Glob.level = number;
-			var waveArray = ampModulate(sine,number);
+		function moveSlider()
+		{
+			var sliderVal = parseInt(this.target.getAttribute('id'));
+			var number = Glob.sliders[(sliderVal-1)].noUiSlider.get();
+			var waveArray = generateSines(sine,number, sliderVal);
 			animation(waveArray, Glob.offset);
 		}
 
@@ -115,7 +127,29 @@
 			draw: () => canvasDraw(state.x1,state.y1,state.x2,state.y2)
 		})
 
-		const ampModulate = (waveArray, factor) => waveArray.map((sample) => sample * factor);
+		const ampModulate = (waveArray, factor, harmonic) => waveArray.map((sample) => sample * factor);
+		
+		function generateSines(waveArray, factor, harmonic)
+		{
+			
+			var x = 0;
+			for(x = 0; x < 256; x++)
+			{
+				waveArray[x] = 0;
+			}
+			
+			var harm = 0;
+			var r = 0.02453125; //  ( 6.28 / 256 )
+			for(harm = 0; harm < 8; harm++)
+			{
+				var sliderVal = Glob.sliders[harm].noUiSlider.get();
+				for(x = 0; x < 256; x++)
+				{
+					waveArray[x] += Math.sin(r * x * (harm+1)) * sliderVal;
+				}
+			}
+			return waveArray;
+		}
 
 		const wavedrawer = (x1,y1,x2,y2) => { 
 		let state = {
@@ -129,10 +163,8 @@
 			drawer(state))
 		}
 
+		var sine = new Array(256);
 
-		var sine = [0,6,13,19,25,31,38,44,50,56,62,68,74,80,86,92,98,104,109,115,121,126,132,137,142,147,152,157,162,167,172,176,181,185,190,194,198,202,205,209,213,216,219,222,225,228,231,234,236,238,241,243,244,246,248,249,250,251,252,253,254,254,255,255,255,255,255,254,254,253,252,251,250,248,247,245,243,242,239,237,235,232,230,227,224,221,218,214,211,207,203,200,196,192,187,183,179,174,169,165,160,155,150,145,140,134,129,123,118,112,107,101,95,89,83,77,71,65,59,53,47,41,34,28,22,16,9,3,-3,-9,-16,-22,-28,-34,-41,-47,-53,-59,-65,-71,-77,-83,-89,-95,-101,-107,-112,-118,-123,-129,-134,-140,-145,-150,-155,-160,-165,-169,-174,-179,-183,-187,-192,-196,-200,-203,-207,-211,-214,-218,-221,-224,-227,-230,-232,-235,-237,-239,-242,-243,-245,-247,-248,-250,-251,-252,-253,-254,-254,-255,-255,-255,-255,-255,-254,-254,-253,-252,-251,-250,-249,-248,-246,-244,-243,-241,-238,-236,-234,-231,-228,-225,-222,-219,-216,-213,-209,-205,-202,-198,-194,-190,-185,-181,-176,-172,-167,-162,-157,-152,-147,-142,-137,-132,-126,-121,-115,-109,-104,-98,-92,-86,-80,-74,-68,-62,-56,-50,-44,-38,-31,-25,-19,-13,-6,0];
-
-		
 		</script>
 		<script src="slider/nouislider.min.js"></script>
 </html>
