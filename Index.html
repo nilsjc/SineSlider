@@ -65,6 +65,7 @@
 		var Glob = Glob || {};
 
 		window.onload = function(){
+			Glob.audioArray = new Array(256);
 			Glob.canvas = document.getElementById("Canvas0");
 			Glob.ctx = Glob.canvas.getContext("2d");
 			Glob.ctx.fillStyle = "#000000";
@@ -73,8 +74,9 @@
 			Glob.waveSelect = 0;
 			Glob.modify = 0;
 			Glob.play = 0;
-			var waveArray = ampModulate(sine,0.0);
-			animation(waveArray, Glob.offset);
+			Glob.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+			Glob.audioArray =  ampModulate(sine,0.0);
+			animation(Glob.audioArray, Glob.offset);
 			controlInit();
 		}
 
@@ -99,7 +101,32 @@
 		}
 		function togglePlay()
 		{
-			
+			if(Glob.play==0){
+				Glob.play=1;
+				console.log("play on");
+
+                // Create oscillator
+                let oscillator = Glob.audioContext.createOscillator();
+                // Set the wavetable
+                oscillator.setPeriodicWave(Glob.audioArray);
+                oscillator.frequency.setValueAtTime(440, Glob.audioContext.currentTime); // value in hertz
+				oscillator.connect(Glob.audioContext.destination);
+				oscillator.start();
+                this.isPlaying = true;
+			}else{
+				Glob.play=0;
+				console.log("play off");
+				if (this.oscillator) {
+                    this.oscillator.stop();
+                    this.oscillator.disconnect();
+                    this.oscillator = null;
+                }
+                if (this.gainNode) {
+                    this.gainNode.disconnect();
+                    this.gainNode = null;
+                }
+                this.isPlaying = false;
+			}
 		}
 		function resetWave()
 		{
@@ -110,7 +137,7 @@
 				sine[x] = 0;
 				waveF[x] = 0;
 				waveFBackup[x] = 0;
-				waveArray[x] = 0;
+				Glob.audioArray[x] = waveArray[x] = 0;
 			}
 			for(x=0; x < 8; x++){
 				Glob.sliders[x].noUiSlider.reset();
