@@ -65,7 +65,6 @@
 		var Glob = Glob || {};
 
 		window.onload = function(){
-			Glob.audioArray = new Array(256);
 			Glob.canvas = document.getElementById("Canvas0");
 			Glob.ctx = Glob.canvas.getContext("2d");
 			Glob.ctx.fillStyle = "#000000";
@@ -74,11 +73,21 @@
 			Glob.waveSelect = 0;
 			Glob.modify = 0;
 			Glob.play = 0;
-			Glob.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-			Glob.audioArray =  ampModulate(sine,0.0);
-			animation(Glob.audioArray, Glob.offset);
 			controlInit();
 		}
+
+		function createPeriodicWaveFromWavetable(wavetable) {
+                // Convert time-domain wavetable to frequency-domain using FFT
+                // For simplicity, we'll use the browser's built-in FFT
+                const real = new Float32Array(wavetable.length);
+                const imag = new Float32Array(wavetable.length);
+                
+                // Copy wavetable to real part
+                real.set(wavetable);
+                
+                // Create PeriodicWave
+                return this.audioContext.createPeriodicWave(real, imag);
+            }
 
 
 		//kod för DOM
@@ -104,26 +113,22 @@
 			if(Glob.play==0){
 				Glob.play=1;
 				console.log("play on");
-
-                // Create oscillator
-                let oscillator = Glob.audioContext.createOscillator();
-                // Set the wavetable
-                oscillator.setPeriodicWave(Glob.audioArray);
-                oscillator.frequency.setValueAtTime(440, Glob.audioContext.currentTime); // value in hertz
-				oscillator.connect(Glob.audioContext.destination);
-				oscillator.start();
+				Glob.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+				Glob.oscillator = Glob.audioContext.createOscillator();
+				Glob.gainNode = Glob.audioContext.createGain();
+				Glob.oscillator.frequency.value = 220; // value in hertz
+				Glob.oscillator.connect(Glob.gainNode);
+				Glob.gainNode.connect(Glob.audioContext.destination);
+				Glob.gainNode.gain.value = 0.4; // volume
+				Glob.oscillator.start();
                 this.isPlaying = true;
 			}else{
 				Glob.play=0;
 				console.log("play off");
-				if (this.oscillator) {
-                    this.oscillator.stop();
-                    this.oscillator.disconnect();
-                    this.oscillator = null;
-                }
-                if (this.gainNode) {
-                    this.gainNode.disconnect();
-                    this.gainNode = null;
+				if (Glob.oscillator) {
+                    Glob.oscillator.stop();
+                    Glob.oscillator.disconnect();
+                    Glob.oscillator = null;
                 }
                 this.isPlaying = false;
 			}
@@ -137,7 +142,6 @@
 				sine[x] = 0;
 				waveF[x] = 0;
 				waveFBackup[x] = 0;
-				Glob.audioArray[x] = waveArray[x] = 0;
 			}
 			for(x=0; x < 8; x++){
 				Glob.sliders[x].noUiSlider.reset();
@@ -151,7 +155,7 @@
 			var number = Glob.sliders[(sliderVal-1)].noUiSlider.get();
 			let waveArray;
 			if(Glob.modify==0){
-				waveArray = generateWaveform2(127);
+				waveArray = generateWaveform(127);
 			}else{
 				waveArray = modifyLoadedWave(127);
 			}
@@ -207,47 +211,33 @@
 		// scanning all sliders and applying its values
 		function generateWaveform(amplitude)
 		{
+			const real = new Float32Array(8);
+			const imag = new Float32Array(8);
 			let x = 0;
 			for(x = 0; x < 256; x++)
 			{
 				waveF[x] = 0;
 			}
 			let harm = 0;
-			let r = 0.02453125; //  ( 6.28 / 256 )
-			for(harm = 0; harm < 8; harm++)
-			{
-				let sliderVal = (Glob.sliders[harm].noUiSlider.get()/127.0); // max 127
-				for(x = 0; x < 256; x++)
-				{
-					waveF[x] += (Math.sin(r * x * (harm+1)) * sliderVal) * amplitude;
-				}
-			}
-			return waveF;
-		}
-
-		function generateWaveform2(amplitude)
-		{
-			let x = 0;
-			for(x = 0; x < 256; x++)
-			{
-				waveF[x] = 0;
-			}
-			let harm = 0;
-			let r = 0.02453125; //  ( 6.28 / 256 )
+			const radiansPerSegment = 0.02453125; //  ( 6.28 / 256 )
 			for(harm = 0; harm < 8; harm++)
 			{
 				let sliderVal = ((Glob.sliders[harm].noUiSlider.get() - 64) / 64.0); // max 127
 				for(x = 0; x < 256; x++)
 				{
-					waveF[x] += (Math.sin(r * x * (harm+1)) * sliderVal) * amplitude;
+					let result = Math.sin(radiansPerSegment * x * (harm+1)) * sliderVal;
+					real[harm+1] = result;
+					waveF[x] += result * amplitude;
+					imag[harm+1] = 0;
 				}
 			}
+			Glob.oscillator.setPeriodicWave(Glob.audioContext.createPeriodicWave(real, imag, { disableNormalization: true }));
 			return waveF;
 		}
 
 		function modifyLoadedWave(amp)
 		{
-			let ampsMods = generateWaveform2(1.0);
+			let ampsMods = generateWaveform(1.0);
 			let z;
 			let result = new Array(256);
 			for(z=0; z<256; z++)
@@ -306,6 +296,7 @@
 				waveFBackup[x] = waveF[x] = table3[x + (Glob.waveSelect*256)];
 			}
 			animation(waveF, Glob.offset);
+			Glob.oscillator.setPeriodicWave(waveF / 127.0);
 		}
 
 		var sine = new Array(256);
