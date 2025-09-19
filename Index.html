@@ -11,12 +11,16 @@
 
 			.freqCntrl {
 			height: 300px;
-			width: 400px;
+			width: 600px;
 			margin: 20px;
 			padding: 10px;
 			border: 1px solid #000000;
 			background: rgb(65, 68, 64);
 			display:inline-block;
+			}
+
+			.box{
+				background-color: darkslategray;
 			}
 
 			.result {
@@ -29,6 +33,10 @@
 			display:inline-block;
 			}
 
+			.userButtons {
+				margin: 20px;
+			}
+
 			.slider .noUi-connect {
 			background: #c0002b;
 			}
@@ -37,26 +45,30 @@
 
 	</head>
 	<body>
-		<div class="freqCntrl">
-			<div class="slider" id="1"></div>
-			<div class="slider" id="2"></div>
-			<div class="slider" id="3"></div>
-			<div class="slider" id="4"></div>
-			<div class="slider" id="5"></div>
-			<div class="slider" id="6"></div>
-			<div class="slider" id="7"></div>
-			<div class="slider" id="8"></div>
-			<div class="slider" id="9"></div>
-			<div class="slider" id="10"></div>
-			<button onclick="stepThruWaves('left')">Waveform -</button>
-			<button onclick="stepThruWaves('right')">Waveform +</button>
-			<button onclick="resetWave()">Reset Waveform</button>
-			<button onclick="togglePlay()">Play/Stop</button>
-		</div>
-		<div class="result">
-			<canvas id="Canvas0" width="256" height="260">
-				Ser du denna text, stödjer inte webläsaren HTML5-canvas.
-			</canvas>
+		<div class="box">
+			<div class="freqCntrl">
+				<div class="slider" id="1"></div>
+				<div class="slider" id="2"></div>
+				<div class="slider" id="3"></div>
+				<div class="slider" id="4"></div>
+				<div class="slider" id="5"></div>
+				<div class="slider" id="6"></div>
+				<div class="slider" id="7"></div>
+				<div class="slider" id="8"></div>
+				<div class="slider" id="9"></div>
+				<div class="slider" id="10"></div>
+			</div>
+			<div class="userButtons">
+				<button onclick="stepThruWaves('left')">Waveform -</button>
+				<button onclick="stepThruWaves('right')">Waveform +</button>
+				<button onclick="resetWave()">Reset Waveform</button>
+				<button onclick="togglePlay()">Play/Stop</button>
+			</div>
+			<div class="result">
+				<canvas id="Canvas0" width="256" height="260">
+					Ser du denna text, stödjer inte webläsaren HTML5-canvas.
+				</canvas>
+			</div>
 		</div>
 		
 		<script>
@@ -94,7 +106,7 @@
 		function controlInit(){
 			Glob.sliders = document.getElementsByClassName("slider");
 			var sx = 0;
-			for(sx = 0; sx < 8; sx++)
+			for(sx = 0; sx < 10; sx++)
 			{
 				noUiSlider.create(Glob.sliders[sx],{
 				start:64,
@@ -107,6 +119,7 @@
 				});
 				Glob.sliders[sx].noUiSlider.on('slide', moveSlider); //() => moveSlider(sx)
 			}
+			Glob.sliders[8].noUiSlider.set(30); //frequency
 		}
 		function togglePlay()
 		{
@@ -116,7 +129,7 @@
 				Glob.audioContext = new (window.AudioContext || window.webkitAudioContext)();
 				Glob.oscillator = Glob.audioContext.createOscillator();
 				Glob.gainNode = Glob.audioContext.createGain();
-				Glob.oscillator.frequency.value = 220; // value in hertz
+				Glob.oscillator.frequency.value = 180; // value in hertz
 				Glob.oscillator.connect(Glob.gainNode);
 				Glob.gainNode.connect(Glob.audioContext.destination);
 				Glob.gainNode.gain.value = 0.4; // volume
@@ -153,14 +166,28 @@
 		{
 			var sliderVal = parseInt(this.target.getAttribute('id'));
 			var number = Glob.sliders[(sliderVal-1)].noUiSlider.get();
-			let waveArray;
+			if(sliderVal<9){
+				let waveArray;
 			if(Glob.modify==0){
-				waveArray = generateWaveform(127);
+				waveArray = generateWaveform(1.0);
 			}else{
-				waveArray = modifyLoadedWave(127);
+				waveArray = modifyLoadedWave(1.0);
 			}
 			
 			animation(waveArray, Glob.offset);
+
+			}else if(sliderVal==9){
+				let freq = (number * 8) + 1; //16 to 2048
+				if(Glob.oscillator){
+					Glob.oscillator.frequency.value = freq;
+				}
+			}else if(sliderVal==10){
+				let vol = number / 127.0; //0.0 to 1.0
+				if(Glob.gainNode){
+					Glob.gainNode.gain.value = vol;
+				}
+			}
+			
 		}
 
 		var clearScreen = function (){
@@ -192,12 +219,17 @@
 			drawer(state))
 		}
 
-		var animation = function(waveArray,offset){     
+		var animation = function(waveArray,offset){
+			const canvasAmplitude = 64;
+			let drawArray = new Array(256);
+			for(var x = 0; x < waveArray.length; x++){
+				drawArray[x] = waveArray[x] * canvasAmplitude; //scale to fit canvas
+			}
 			clearScreen();
 			var y1, y2, x2;
-			for (var x1 = 0 ; x1 < (waveArray.length - 1); x1++){
-				y1 = (waveArray[x1]); 
-				y2 = (waveArray[x1 + 1]);
+			for (var x1 = 0 ; x1 < (drawArray.length - 1); x1++){
+				y1 = (drawArray[x1]); 
+				y2 = (drawArray[x1 + 1]);
 				x2 = x1 + 1;
 				y1 = offset - y1;  //offset values
 				y2 = offset - y2;
@@ -293,10 +325,10 @@
 			}
 			for(x = 0; x < 256; x++)
 			{
-				waveFBackup[x] = waveF[x] = table3[x + (Glob.waveSelect*256)];
+				waveFBackup[x] = waveF[x] = (table3[x + (Glob.waveSelect*256)])/127.0; //scale to -1.0 to 1.0
 			}
 			animation(waveF, Glob.offset);
-			Glob.oscillator.setPeriodicWave(waveF / 127.0);
+			Glob.oscillator.setPeriodicWave(waveF);
 		}
 
 		var sine = new Array(256);
